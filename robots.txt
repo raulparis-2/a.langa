@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /lb-e148a28a.html
+
+Sitemap: https://adolfolanga.com/sitemap.xml

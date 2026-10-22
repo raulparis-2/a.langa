@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contenido extra (QR) — Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Antonio:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+<meta name="robots" content="noindex, nofollow">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="admin-body">
+
+<div class="admin-topbar">
+  <div class="admin-topbar__brand">Panel de <span>contenido</span></div>
+  <div class="admin-topbar__right">
+    <a href="/" target="_blank">Ver web pública ↗</a>
+    <button class="btn btn--sm" onclick="logout()">Cerrar sesión</button>
+  </div>
+</div>
+
+<div class="admin-shell">
+  <p class="admin-breadcrumb"><a href="/admin/index.html">Panel</a> / Contenido extra (QR)</p>
+  <h1 class="admin-h1">Contenido extra (QR)</h1>
+  <p class="admin-sub">Edita la página oculta a la que lleva el código QR. El enlace no cambia nunca, por mucho que cambies el contenido.</p>
+
+  <div class="field" style="max-width:760px;">
+    <label for="qr-url">Enlace para generar el QR</label>
+    <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+      <input type="text" id="qr-url" readonly style="flex:1; min-width:240px;">
+      <button type="button" class="btn btn--sm" id="copy-btn">Copiar enlace</button>
+      <a class="btn btn--sm" id="view-btn" href="#" target="_blank" rel="noopener">Ver página ↗</a>
+    </div>
+    <p class="field-hint">Usa este enlace en el generador de QR. No lo cambies ni renombres nada: el QR impreso seguirá funcionando siempre.</p>
+  </div>
+
+  <form class="admin-form" id="extra-form" style="max-width:760px;">
+    <div class="field">
+      <label for="eyebrow">Texto pequeño sobre el título (opcional)</label>
+      <input type="text" id="eyebrow" placeholder="Contenido extra del libro">
+    </div>
+
+    <div class="field">
+      <label for="title">Título</label>
+      <input type="text" id="title" required placeholder="Título del libro">
+    </div>
+
+    <div class="field">
+      <label>Contenido</label>
+      <div class="editor-toolbar" id="editor-toolbar"></div>
+      <div class="editor-body" id="editor-body" contenteditable="true"></div>
+      <p class="field-hint">Escribe texto, añade imágenes con el botón «Imagen» y enlaces (por ejemplo, a un vídeo) con «Enlace». Se publica al guardar.</p>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn--primary" id="save-btn">Guardar y publicar</button>
+      <a class="btn" href="/admin/index.html">Volver al panel</a>
+    </div>
+    <p id="form-status" class="field-hint"></p>
+  </form>
+</div>
+
+<script src="/assets/js/config.js"></script>
+<script src="/assets/js/supabase-client.js"></script>
+<script src="/assets/js/helpers.js"></script>
+<script src="/assets/js/admin/auth-guard.js"></script>
+<script src="/assets/js/admin/editor.js"></script>
+<script>
+const EXTRA_PATH = "/lb-e148a28a.html";
+
+function friendlyError(err) {
+  const msg = (err && err.message) || "";
+  if (/extra_page|schema cache|does not exist/i.test(msg)) {
+    return "Falta crear la tabla en Supabase: ejecuta el archivo extra-page.sql en SQL Editor.";
+  }
+  return "Error: " + msg;
+}
+
+(async function () {
+  const user = await requireAuth();
+  if (!user) return;
+
+  const fullUrl = (window.SITE_CONFIG.SITE_URL || window.location.origin) + EXTRA_PATH;
+  document.getElementById("qr-url").value = fullUrl;
+  document.getElementById("view-btn").href = EXTRA_PATH;
+  document.getElementById("copy-btn").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      showToast("Enlace copiado.");
+    } catch (e) {
+      document.getElementById("qr-url").select();
+      showToast("Pulsa Ctrl+C para copiarlo.");
+    }
+  });
+
+  initRichEditor(document.getElementById("editor-body"), document.getElementById("editor-toolbar"), "extra");
+
+  const { data, error } = await window.supabaseClient
+    .from("extra_page").select("*").eq("id", 1).maybeSingle();
+  if (error) {
+    document.getElementById("form-status").textContent = friendlyError(error);
+    return;
+  }
+  if (data) {
+    document.getElementById("eyebrow").value = data.eyebrow || "";
+    document.getElementById("title").value = data.title || "";
+    document.getElementById("editor-body").innerHTML = data.content || "";
+  }
+})();
+
+document.getElementById("extra-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("save-btn");
+  const status = document.getElementById("form-status");
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "Guardando…";
+  status.textContent = "";
+  try {
+    const payload = {
+      id: 1,
+      eyebrow: document.getElementById("eyebrow").value.trim() || null,
+      title: document.getElementById("title").value.trim(),
+      content: document.getElementById("editor-body").innerHTML,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await window.supabaseClient.from("extra_page").upsert(payload);
+    if (error) throw error;
+    showToast("Guardado. Ya está publicado.");
+  } catch (err) {
+    status.textContent = friendlyError(err);
+    showToast("No se pudo guardar.", true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+</script>
+</body>
+</html>

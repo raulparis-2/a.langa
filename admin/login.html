@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acceso — Panel de contenido</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Antonio:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/admin.css">
+<meta name="robots" content="noindex, nofollow">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="admin-body">
+
+<div class="login-shell">
+  <h1>Panel de contenido</h1>
+  <p class="field-hint" style="margin-bottom:1.6rem;">Accede con el email y la contraseña de administrador.</p>
+  <form class="form" id="login-form">
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" id="email" required autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="password">Contraseña</label>
+      <input type="password" id="password" required autocomplete="current-password">
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn--primary">Entrar</button>
+    </div>
+    <p id="login-status" class="field-hint"></p>
+  </form>
+</div>
+
+<script src="/assets/js/config.js"></script>
+<script src="/assets/js/supabase-client.js"></script>
+<script src="/assets/js/helpers.js"></script>
+<script>
+(async function () {
+  const status = document.getElementById("login-status");
+  if (!window.supabaseClient) {
+    status.textContent = "No se pudo cargar el sistema de acceso. Recarga la página (Ctrl+F5) o prueba otra red.";
+    return;
+  }
+  try {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if (session) { window.location.href = "/admin/index.html"; return; }
+  } catch (e) {}
+
+  function explain(error) {
+    const msg = (error && error.message) || "";
+    if (/invalid login credentials/i.test(msg)) return "Email o contraseña incorrectos.";
+    if (/email not confirmed/i.test(msg)) return "Usuario sin confirmar. En Supabase → Authentication → Users, confirma el usuario o créalo con «Auto Confirm User».";
+    if (/failed to fetch|network|load failed/i.test(msg) || error.status === 0)
+      return "No se puede conectar con Supabase. Comprueba que el proyecto no está pausado (Supabase → Restore project).";
+    if (/rate limit|too many/i.test(msg)) return "Demasiados intentos. Espera unos minutos.";
+    return "Error: " + msg;
+  }
+
+  const form = document.getElementById("login-form");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    status.textContent = "Comprobando…";
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    try {
+      const { error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) { status.textContent = explain(error); return; }
+      window.location.href = "/admin/index.html";
+    } catch (err) {
+      status.textContent = explain(err);
+    }
+  });
+})();
+</script>
+</body>
+</html>
